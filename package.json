@@ -1,0 +1,29 @@
+{
+  "name": "js-frameworks-dashboard",
+  "version": "1.0.0",
+  "description": "JS Frameworks Dashboard is a tool for visualizing and comparing popularity of various JavaScript frameworks based on GitHub activity. — Edit",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "build": "babel src -d dist"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/theroncross/js-frameworks-dashboard.git"
+  },
+  "keywords": [
+    "javascript",
+    "frameworks",
+    "github"
+  ],
+  "author": "Theron Cross",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/theroncross/js-frameworks-dashboard/issues"
+  },
+  "homepage": "https://github.com/theroncross/js-frameworks-dashboard#readme",
+  "devDependencies": {
+    "babel-cli": "^6.14.0",
+    "babel-preset-es2015": "^6.14.0"
+  }
+}
