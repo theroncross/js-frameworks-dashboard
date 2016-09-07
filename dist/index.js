@@ -3,8 +3,11 @@
 function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
 
 var graphs = document.getElementById('graph-list');
-var rootUrl = 'https://api.github.com/';
+var rootUrl = 'https://api.github.com';
 var NS = 'http://www.w3.org/2000/svg';
+var frameworks = [{ org: 'facebook', repo: 'react', color: 'blue' }, { org: 'angular', repo: 'angular', color: 'red' }, { org: 'emberjs', repo: 'ember.js', color: 'green' }, { org: 'vuejs', repo: 'vue', color: 'purple' }];
+
+// Utility Functions
 
 var setAttributes = function setAttributes(el, attrs) {
   Object.keys(attrs).forEach(function (attr) {
@@ -17,7 +20,10 @@ var svg = function svg(tag) {
   return newSvg;
 };
 
+// 'Components'
+
 var bar = function bar(attrs) {
+  var value = attrs.value;
   var width = attrs.width;
   var height = attrs.height;
   var fill = attrs.fill;
@@ -32,8 +38,8 @@ var bar = function bar(attrs) {
   var newRect = svg('rect');
   setAttributes(newRect, {
     width: '' + (width - 2),
-    y: '' + (100 - height),
-    height: height,
+    y: '' + (height - value),
+    height: value,
     fill: fill
   });
 
@@ -41,23 +47,84 @@ var bar = function bar(attrs) {
   return newBar;
 };
 
-var avgLine = function avgLine(attrs) {
-  var avg = attrs.avg;
-  var length = attrs.length;
+var axis = function axis(attrs) {
+  var value = attrs.value;
+  var width = attrs.width;
+  var height = attrs.height;
+  var _attrs$stroke = attrs.stroke;
+  var stroke = _attrs$stroke === undefined ? 'silver' : _attrs$stroke;
+  var _attrs$labels = attrs.labels;
+  var labels = _attrs$labels === undefined ? [Math.round(value)] : _attrs$labels;
 
-
-  var newLine = svg('line');
-  setAttributes(newLine, {
-    x1: '0',
-    x2: length,
-    y1: '' + (100 - avg),
-    y2: '' + (100 - avg),
-    'stroke-width': '1px',
-    stroke: 'orange'
+  var newAxis = svg('g');
+  setAttributes(newAxis, {
+    transform: 'translate(0, ' + (height - value) + ')'
   });
 
-  return newLine;
+  var line = svg('line');
+  setAttributes(line, {
+    x2: width,
+    y2: '0',
+    stroke: stroke,
+    'stroke-width': '1px'
+  });
+
+  if (labels) {
+    labels.forEach(function (label, i) {
+      var newLabel = svg('text');
+      setAttributes(newLabel, {
+        x: width * i / labels.length,
+        y: '15',
+        stroke: stroke
+      });
+      newLabel.innerHTML = label;
+      newAxis.appendChild(newLabel);
+    });
+  }
+  newAxis.appendChild(line);
+  return newAxis;
 };
+
+var graph = function graph(attrs) {
+  var data = attrs.data;
+  var id = attrs.id;
+  var color = attrs.color;
+
+  var avg = data.reduce(function (sum, d) {
+    return sum + d;
+  }) / data.length;
+  var max = Math.max.apply(Math, _toConsumableArray(data));
+  var height = max > 100 ? max : 100;
+  var width = 0.6 * window.innerWidth;
+  var barWidth = width / data.length;
+
+  var newGraph = svg('svg');
+  setAttributes(newGraph, {
+    class: 'graph',
+    id: id,
+    height: height,
+    width: width,
+    transform: 'translate(20, 20)'
+  });
+
+  data.forEach(function (d, i) {
+    newGraph.appendChild(bar({
+      value: d,
+      fill: color,
+      width: barWidth,
+      height: height,
+      i: i
+    }));
+  });
+
+  newGraph.appendChild(axis({ value: 0, width: width, height: height }));
+  newGraph.appendChild(axis({ value: height / 2, width: width, height: height }));
+  newGraph.appendChild(axis({ value: height, width: width, height: height }));
+  newGraph.appendChild(axis({ value: avg, width: width, height: height, stroke: 'orange', labels: ['', Math.round(avg), 'average'] }));
+  return newGraph;
+};
+
+// data fetching and parsing
 
 var parseComments = function parseComments(comments) {
   var daysAgo = [];
@@ -76,113 +143,64 @@ var parseComments = function parseComments(comments) {
   });
 };
 
-var graph = function graph(attrs) {
-  var route = attrs.route;
-  var id = attrs.id;
-  var color = attrs.color;
-  var _attrs$width = attrs.width;
-  var width = _attrs$width === undefined ? 250 : _attrs$width;
-
-
-  fetch('' + rootUrl + route).then(function (response) {
-    return response.json();
-  }).then(function (response) {
-    var data = void 0;
-    if (/participation/.test(route)) {
-      data = response.all;
-    } else {
-      data = parseComments(response);
-    }
-
-    var avg = data.reduce(function (sum, d) {
-      return sum + d;
-    }) / data.length;
-    var barWidth = width / data.length;
-    var max = Math.max.apply(Math, _toConsumableArray(data));
-    var height = max > 140 ? max : 140;
-
-    var newGraph = svg('svg');
-    setAttributes(newGraph, { height: height, width: width, id: id });
-
-    data.forEach(function (d, i) {
-      newGraph.appendChild(bar({
-        width: barWidth,
-        height: d,
-        fill: color,
-        i: i
-      }));
+var fetchData = function fetchData(routes) {
+  var fetches = routes.map(function (route) {
+    return fetch(route).then(function (response) {
+      return response.json();
     });
+  });
+  return Promise.all(fetches);
+};
 
-    newGraph.appendChild(avgLine({ avg: avg, length: width }));
-    graphs.appendChild(newGraph);
-  }).catch(function (error) {
-    var errorMessage = document.createElement('p');
-    errorMessage.innerHTML = 'There was a problem loading the data.';
-    graphs.appendChild(errorMessage);
-    console.error('Error loading data: ' + error);
+var routes = function routes(measurement) {
+  var routeSuffixes = {
+    participation: 'stats/participation',
+    comments: 'issues/comments?sort=created&direction=desc&per_page=100'
+  };
+  return frameworks.map(function (fw) {
+    var org = fw.org;
+    var repo = fw.repo;
+
+    return rootUrl + '/repos/' + org + '/' + repo + '/' + routeSuffixes[measurement];
   });
 };
 
-var frameworks = [{
-  org: 'facebook',
-  repo: 'react',
-  color: 'blue'
-}, {
-  org: 'angular',
-  repo: 'angular',
-  color: 'red'
-}, {
-  org: 'emberjs',
-  repo: 'ember.js',
-  color: 'green'
-}, {
-  org: 'vuejs',
-  repo: 'vue',
-  color: 'purple'
-}];
+// dom interaction
+var renderGraphs = function renderGraphs(data) {
+  graphs.innerHTML = '';
+  var graphData = void 0;
+  frameworks.forEach(function (fw, i) {
+    graphData = data[i].all ? data[i].all : parseComments(data[i]);
+    graphs.appendChild(graph({
+      data: graphData,
+      id: fw.repo,
+      color: fw.color
+    }));
+  });
+};
+
+var displayError = function displayError(error) {
+  var errorMessage = document.createElement('p');
+  errorMessage.innerHTML = 'There was a problem loading the data.';
+  graphs.appendChild(errorMessage);
+  console.error('Error loading data: ' + error);
+};
+
+var show = function show(measurement) {
+  fetchData(routes(measurement)).then(function (response) {
+    return response;
+  }).then(function (arrs) {
+    return renderGraphs(arrs);
+  }).catch(function (error) {
+    displayError(error);
+  });
+};
+
+var handleChange = function handleChange(e) {
+  show(e.target.value);
+};
 
 window.onload = function () {
-  var form = document.getElementById('stat-selector');
-  var routeSuffix = void 0;
-
-  form.onchange = function (event) {
-    if (event.target.value === 'participation') {
-      routeSuffix = 'stats/participation';
-    } else {
-      routeSuffix = 'issues/comments?sort=created&direction=desc&per_page=100';
-    }
-
-    graphs.innerHTML = '';
-    var _iteratorNormalCompletion = true;
-    var _didIteratorError = false;
-    var _iteratorError = undefined;
-
-    try {
-      for (var _iterator = frameworks[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-        var fw = _step.value;
-        var org = fw.org;
-        var repo = fw.repo;
-        var color = fw.color;
-
-        graph({
-          route: 'repos/' + org + '/' + repo + '/' + routeSuffix,
-          id: repo,
-          color: color
-        });
-      }
-    } catch (err) {
-      _didIteratorError = true;
-      _iteratorError = err;
-    } finally {
-      try {
-        if (!_iteratorNormalCompletion && _iterator.return) {
-          _iterator.return();
-        }
-      } finally {
-        if (_didIteratorError) {
-          throw _iteratorError;
-        }
-      }
-    }
-  };
+  show('comments');
+  document.getElementById('stat-selector').addEventListener('change', handleChange);
 };

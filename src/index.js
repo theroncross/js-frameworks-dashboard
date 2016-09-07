@@ -1,6 +1,14 @@
 const graphs = document.getElementById('graph-list');
-const rootUrl = 'https://api.github.com/';
+const rootUrl = 'https://api.github.com';
 const NS = 'http://www.w3.org/2000/svg';
+const frameworks = [
+  { org: 'facebook', repo: 'react', color: 'blue' },
+  { org: 'angular', repo: 'angular', color: 'red' },
+  { org: 'emberjs', repo: 'ember.js', color: 'green' },
+  { org: 'vuejs', repo: 'vue', color: 'purple' },
+];
+
+// Utility Functions
 
 const setAttributes = (el, attrs) => {
   Object.keys(attrs).forEach((attr) => {
@@ -13,8 +21,10 @@ const svg = (tag) => {
   return newSvg;
 };
 
+// 'Components'
+
 const bar = (attrs) => {
-  const { width, height, fill, i } = attrs;
+  const { value, width, height, fill, i } = attrs;
 
   const newBar = svg('g');
   setAttributes(newBar, {
@@ -24,8 +34,8 @@ const bar = (attrs) => {
   const newRect = svg('rect');
   setAttributes(newRect, {
     width: `${width - 2}`,
-    y: `${100 - height}`,
-    height,
+    y: `${height - value}`,
+    height: value,
     fill,
   });
 
@@ -33,21 +43,72 @@ const bar = (attrs) => {
   return newBar;
 };
 
-const avgLine = (attrs) => {
-  const { avg, length } = attrs;
-
-  const newLine = svg('line');
-  setAttributes(newLine, {
-    x1: '0',
-    x2: length,
-    y1: `${100 - avg}`,
-    y2: `${100 - avg}`,
-    'stroke-width': '1px',
-    stroke: 'orange',
+const axis = (attrs) => {
+  const { value, width, height, stroke = 'silver', labels = [Math.round(value)] } = attrs;
+  const newAxis = svg('g');
+  setAttributes(newAxis, {
+    transform: `translate(0, ${height - value})`,
   });
 
-  return newLine;
+  const line = svg('line');
+  setAttributes(line, {
+    x2: width,
+    y2: '0',
+    stroke,
+    'stroke-width': '1px',
+  });
+
+  if (labels) {
+    labels.forEach((label, i) => {
+      const newLabel = svg('text');
+      setAttributes(newLabel, {
+        x: width * i / labels.length,
+        y: '15',
+        stroke,
+      });
+      newLabel.innerHTML = label;
+      newAxis.appendChild(newLabel);
+    });
+  }
+  newAxis.appendChild(line);
+  return newAxis;
 };
+
+const graph = (attrs) => {
+  const { data, id, color } = attrs;
+  const avg = data.reduce((sum, d) => sum + d) / data.length;
+  const max = Math.max(...data);
+  const height = max > 100 ? max : 100;
+  const width = 0.6 * window.innerWidth;
+  const barWidth = width / data.length;
+
+  const newGraph = svg('svg');
+  setAttributes(newGraph, {
+    class: 'graph',
+    id,
+    height,
+    width,
+    transform: 'translate(20, 20)',
+  });
+
+  data.forEach((d, i) => {
+    newGraph.appendChild(bar({
+      value: d,
+      fill: color,
+      width: barWidth,
+      height,
+      i,
+    }));
+  });
+
+  newGraph.appendChild(axis({ value: 0, width, height }));
+  newGraph.appendChild(axis({ value: height / 2, width, height }));
+  newGraph.appendChild(axis({ value: height, width, height }));
+  newGraph.appendChild(axis({ value: avg, width, height, stroke: 'orange', labels: ['', Math.round(avg), 'average'] }));
+  return newGraph;
+};
+
+// data fetching and parsing
 
 const parseComments = (comments) => {
   const daysAgo = [];
@@ -64,86 +125,61 @@ const parseComments = (comments) => {
   });
 };
 
-const graph = (attrs) => {
-  const { route, id, color, width = 250 } = attrs;
+const fetchData = (routes) => {
+  const fetches = routes.map((route) => {
+    return fetch(route)
+    .then((response) => response.json());
+  });
+  return Promise.all(fetches);
+};
 
-  fetch(`${rootUrl}${route}`)
-  .then((response) => response.json())
-  .then((response) => {
-    let data;
-    if (/participation/.test(route)) {
-      data = response.all;
-    } else {
-      data = parseComments(response);
-    }
-
-    const avg = data.reduce((sum, d) => sum + d) / data.length;
-    const barWidth = width / data.length;
-    const max = Math.max(...data);
-    const height = max > 140 ? max : 140;
-
-    const newGraph = svg('svg');
-    setAttributes(newGraph, { height, width, id });
-
-    data.forEach((d, i) => {
-      newGraph.appendChild(bar({
-        width: barWidth,
-        height: d,
-        fill: color,
-        i,
-      }));
-    });
-
-    newGraph.appendChild(avgLine({ avg, length: width }));
-    graphs.appendChild(newGraph);
-  })
-  .catch((error) => {
-    const errorMessage = document.createElement('p');
-    errorMessage.innerHTML = 'There was a problem loading the data.';
-    graphs.appendChild(errorMessage);
-    console.error(`Error loading data: ${error}`);
+const routes = (measurement) => {
+  const routeSuffixes = {
+    participation: 'stats/participation',
+    comments: 'issues/comments?sort=created&direction=desc&per_page=100',
+  };
+  return frameworks.map((fw) => {
+    const { org, repo } = fw;
+    return `${rootUrl}/repos/${org}/${repo}/${routeSuffixes[measurement]}`;
   });
 };
 
-const frameworks = [
-  {
-    org: 'facebook',
-    repo: 'react',
-    color: 'blue',
-  }, {
-    org: 'angular',
-    repo: 'angular',
-    color: 'red',
-  }, {
-    org: 'emberjs',
-    repo: 'ember.js',
-    color: 'green',
-  }, {
-    org: 'vuejs',
-    repo: 'vue',
-    color: 'purple',
-  },
-];
+// dom interaction
+const renderGraphs = (data) => {
+  graphs.innerHTML = '';
+  let graphData;
+  frameworks.forEach((fw, i) => {
+    graphData = data[i].all ? data[i].all : parseComments(data[i])
+    graphs.appendChild(graph({
+      data: graphData,
+      id: fw.repo,
+      color: fw.color,
+    }));
+  });
+};
+
+const displayError = (error) => {
+  const errorMessage = document.createElement('p');
+  errorMessage.innerHTML = 'There was a problem loading the data.';
+  graphs.appendChild(errorMessage);
+  console.error(`Error loading data: ${error}`);
+};
+
+const show = (measurement) => {
+  fetchData(routes(measurement))
+  .then((response) => response)
+  .then((arrs) => renderGraphs(arrs))
+  .catch((error) => {
+    displayError(error);
+  });
+};
+
+const handleChange = (e) => {
+  show(e.target.value);
+};
 
 window.onload = () => {
-  const form = document.getElementById('stat-selector');
-  let routeSuffix;
-
-  form.onchange = (event) => {
-    if (event.target.value === 'participation') {
-      routeSuffix = 'stats/participation';
-    } else {
-      routeSuffix = 'issues/comments?sort=created&direction=desc&per_page=100';
-    }
-
-    graphs.innerHTML = '';
-    for (const fw of frameworks) {
-      const { org, repo, color } = fw;
-      graph({
-        route: `repos/${org}/${repo}/${routeSuffix}`,
-        id: repo,
-        color,
-      });
-    }
-  };
+  show('comments');
+  document.getElementById('stat-selector')
+  .addEventListener('change', handleChange);
 };
