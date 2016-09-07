@@ -1,108 +1,149 @@
-const app = document.getElementById('app');
-const rootUrl = 'https://api.github.com/'
-const NS='http://www.w3.org/2000/svg';
+const graphs = document.getElementById('graph-list');
+const rootUrl = 'https://api.github.com/';
+const NS = 'http://www.w3.org/2000/svg';
 
 const setAttributes = (el, attrs) => {
-  for(let attr in attrs) {
+  Object.keys(attrs).forEach((attr) => {
     el.setAttributeNS(null, attr, attrs[attr]);
-  }
+  });
 };
 
-const SVGElement = (type) => {
-  const svg=document.createElementNS(NS, type);
-  return svg;
+const svg = (tag) => {
+  const newSvg = document.createElementNS(NS, tag);
+  return newSvg;
 };
 
-const newGraph = (attrs) => {
-  const { data, id, color, width = 1030, height = 140 } = attrs;
-  const barWidth = width / data.all.length;
-  let bar, rect;
+const bar = (attrs) => {
+  const { width, height, fill, i } = attrs;
 
-  const graph = SVGElement("svg");
-  setAttributes(graph, { height, width, id });
-
-  const avg = data.all.reduce((w, a) => { return w + a }) / data.all.length;
-  const avgLine = SVGElement("line");
-  setAttributes(avgLine, {
-    "x1": "0",
-    "x2": width,
-    "y1": `${100 - avg}`,
-    "y2": `${100 - avg}`,
-    "stroke-width": "1px",
-    "stroke": "orange"
+  const newBar = svg('g');
+  setAttributes(newBar, {
+    transform: `translate(${width * i}, 0)`,
   });
 
-  data.all.forEach((week, i) => {
-    bar = SVGElement("g");
-    setAttributes(bar, {
-      "transform": `translate(${barWidth * i}, 0)`
-    });
-
-    rect = SVGElement("rect");
-    setAttributes(rect, {
-      "width": `${barWidth - 2}`,
-      "height": week,
-      "y": `${100 - week}`,
-      "fill": color
-    });
-
-    bar.appendChild(rect);
-    graph.appendChild(bar);
+  const newRect = svg('rect');
+  setAttributes(newRect, {
+    width: `${width - 2}`,
+    y: `${100 - height}`,
+    height,
+    fill,
   });
 
-  graph.appendChild(avgLine);
-  app.appendChild(graph);
+  newBar.appendChild(newRect);
+  return newBar;
 };
 
-const fetchData = ({ route, ...attrs }) => {
+const avgLine = (attrs) => {
+  const { avg, length } = attrs;
+
+  const newLine = svg('line');
+  setAttributes(newLine, {
+    x1: '0',
+    x2: length,
+    y1: `${100 - avg}`,
+    y2: `${100 - avg}`,
+    'stroke-width': '1px',
+    stroke: 'orange',
+  });
+
+  return newLine;
+};
+
+const parseComments = (comments) => {
+  const daysAgo = [];
+  for (let i = 6; i >= 0; i--) { daysAgo.push(i); }
+
+  const commentAges = comments.map((comment) => {
+    return Math.round((Date.now() - new Date(comment.created_at)) / (1000 * 60 * 60 * 24));
+  });
+
+  return daysAgo.map((days) => {
+    return commentAges.reduce((total, commentAge) => {
+      return days === commentAge ? total + 1 : total;
+    }, 0);
+  });
+};
+
+const graph = (attrs) => {
+  const { route, id, color, width = 250 } = attrs;
+
   fetch(`${rootUrl}${route}`)
+  .then((response) => response.json())
   .then((response) => {
-    return response.json()
+    let data;
+    if (/participation/.test(route)) {
+      data = response.all;
+    } else {
+      data = parseComments(response);
+    }
+
+    const avg = data.reduce((sum, d) => sum + d) / data.length;
+    const barWidth = width / data.length;
+    const max = Math.max(...data);
+    const height = max > 140 ? max : 140;
+
+    const newGraph = svg('svg');
+    setAttributes(newGraph, { height, width, id });
+
+    data.forEach((d, i) => {
+      newGraph.appendChild(bar({
+        width: barWidth,
+        height: d,
+        fill: color,
+        i,
+      }));
+    });
+
+    newGraph.appendChild(avgLine({ avg, length: width }));
+    graphs.appendChild(newGraph);
   })
-  .then((data) => { newGraph({ ...attrs, data }) })
   .catch((error) => {
-    console.log(`Error loading data: ${error.mesage}`)
-  })
-}
+    const errorMessage = document.createElement('p');
+    errorMessage.innerHTML = 'There was a problem loading the data.';
+    graphs.appendChild(errorMessage);
+    console.error(`Error loading data: ${error}`);
+  });
+};
 
 const frameworks = [
   {
-    org: "facebook",
-    repo: "react",
-    color: "blue"
+    org: 'facebook',
+    repo: 'react',
+    color: 'blue',
   }, {
-    org: "angular",
-    repo: "angular",
-    color: "red"
+    org: 'angular',
+    repo: 'angular',
+    color: 'red',
   }, {
-    org: "emberjs",
-    repo: "ember.js",
-    color: "green"
+    org: 'emberjs',
+    repo: 'ember.js',
+    color: 'green',
   }, {
-    org: "vuejs",
-    repo: "vue",
-    color: "purple"
-  }
+    org: 'vuejs',
+    repo: 'vue',
+    color: 'purple',
+  },
 ];
 
-const renderGraphs = (partialRoute) => {
-  for(let framework of frameworks) {
-    let { org, repo, color } = framework;
-    fetchData({
-      route: `repos/${org}/${repo}/${partialRoute}`,
-      id: repo,
-      color: color
-    });
-  }
-};
-
 window.onload = () => {
-  const form = document.getElementById("stat-selector");
+  const form = document.getElementById('stat-selector');
+  let routeSuffix;
+
   form.onchange = (event) => {
-    if(event.target.value === "participation") {
-      renderGraphs('stats/participation');
+    if (event.target.value === 'participation') {
+      routeSuffix = 'stats/participation';
     } else {
-      renderGraphs('issues/comments');
+      routeSuffix = 'issues/comments?sort=created&direction=desc&per_page=100';
     }
-  }
+
+    graphs.innerHTML = '';
+    for (const fw of frameworks) {
+      const { org, repo, color } = fw;
+      graph({
+        route: `repos/${org}/${repo}/${routeSuffix}`,
+        id: repo,
+        color,
+      });
+    }
+  };
 };
