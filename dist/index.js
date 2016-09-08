@@ -69,7 +69,7 @@ var axis = function axis(attrs) {
     'stroke-width': '1px'
   });
 
-  if (labels) {
+  if (labels.length) {
     labels.forEach(function (label, i) {
       var newLabel = svg('text');
       setAttributes(newLabel, {
@@ -87,22 +87,20 @@ var axis = function axis(attrs) {
 
 var graph = function graph(attrs) {
   var data = attrs.data;
-  var id = attrs.id;
+  var repo = attrs.repo;
   var color = attrs.color;
   var max = attrs.max;
-  var avg = attrs.avg;
 
   var height = max > 100 ? max : 100;
-  var width = 0.6 * window.innerWidth;
+  var width = 0.5 * window.innerWidth;
   var barWidth = width / data.length;
 
   var newGraph = svg('svg');
   setAttributes(newGraph, {
     class: 'graph',
-    id: id,
+    id: repo,
     height: height,
-    width: width,
-    transform: 'translate(20, 20)'
+    width: width
   });
 
   var axes = [{ value: 0, width: width, height: height }, { value: height / 2, width: width, height: height }, { value: height, width: width, height: height }];
@@ -115,26 +113,28 @@ var graph = function graph(attrs) {
     newGraph.appendChild(bar(barAttrs));
   });
 
-  newGraph.appendChild(axis({ value: avg, width: width, height: height, stroke: 'grey', labels: ['', Math.round(avg)] }));
-
   return newGraph;
 };
 
 // data fetching and parsing
 
-var parseComments = function parseComments(comments) {
+var mapAges = function mapAges(entries) {
+  var age = function age(entry) {
+    return Math.round((Date.now() - new Date(entry.created_at)) / (1000 * 60 * 60 * 24));
+  };
+
   var daysAgo = [];
-  for (var i = 6; i >= 0; i--) {
+  for (var i = 0; i <= 6; i++) {
     daysAgo.push(i);
   }
 
-  var commentAges = comments.map(function (comment) {
-    return Math.round((Date.now() - new Date(comment.created_at)) / (1000 * 60 * 60 * 24));
+  var entryAges = entries.map(function (entry) {
+    return age(entry);
   });
 
   return daysAgo.map(function (days) {
-    return commentAges.reduce(function (total, commentAge) {
-      return days === commentAge ? total + 1 : total;
+    return entryAges.reduce(function (total, entryAge) {
+      return days === entryAge ? total + 1 : total;
     }, 0);
   });
 };
@@ -151,7 +151,8 @@ var fetchData = function fetchData(routes) {
 var routes = function routes(measurement) {
   var routeSuffixes = {
     participation: 'stats/participation',
-    comments: 'issues/comments?sort=created&direction=desc&per_page=100'
+    comments: 'issues/comments?sort=created&direction=desc&per_page=100',
+    pulls: 'pulls?sort=created&state=all&direction=desc&per_page=100'
   };
   return frameworks.map(function (fw) {
     var org = fw.org;
@@ -162,21 +163,30 @@ var routes = function routes(measurement) {
 };
 
 var frameworkObjs = function frameworkObjs(response) {
-  var fw = void 0;
-  return frameworks.map(function (framework, i) {
-    fw = Object.assign({}, framework);
-    fw.data = response[i].all ? response[i].all : parseComments(response[i]);
-    fw.max = Math.max.apply(Math, _toConsumableArray(fw.data));
-    fw.avg = fw.data.reduce(function (sum, d) {
+  var isAge = !response[0].all;
+  var ageWeighted = function ageWeighted(data) {
+    return data.reduce(function (sum, d, i) {
+      return sum + d * i;
+    }) / data.length;
+  };
+  var mean = function mean(data) {
+    return data.reduce(function (sum, d) {
       return sum + d;
-    }) / fw.data.length;
-    fw.graph = graph({
-      data: fw.data,
-      id: fw.repo,
-      color: fw.color,
-      max: fw.max,
-      avg: fw.avg
-    });
+    }) / data.length;
+  };
+
+  return frameworks.map(function (framework, i) {
+    var fw = Object.assign({}, framework);
+    fw.data = isAge ? mapAges(response[i]) : response[i].all;
+    fw.max = Math.max.apply(Math, _toConsumableArray(fw.data));
+    fw.avg = isAge ? ageWeighted(fw.data) : mean(fw.data);
+    var repo = fw.repo;
+    var data = fw.data;
+    var color = fw.color;
+    var max = fw.max;
+    var avg = fw.avg;
+
+    fw.graph = graph({ repo: repo, data: data, color: color, max: max, avg: avg });
     return fw;
   });
 };
@@ -186,7 +196,12 @@ var frameworkObjs = function frameworkObjs(response) {
 var renderGraphs = function renderGraphs(fws) {
   graphs.innerHTML = '';
   fws.forEach(function (fw) {
-    graphs.appendChild(fw.graph);
+    var graphContainer = document.createElement('div');
+    var title = document.createElement('h3');
+    title.innerHTML = '' + fw.repo.toUpperCase();
+    graphContainer.appendChild(title);
+    graphContainer.appendChild(fw.graph);
+    graphs.appendChild(graphContainer);
   });
 };
 
@@ -214,12 +229,19 @@ var show = function show(attrs) {
   });
 };
 
-var handleChange = function handleChange(e) {
-  var fields = [].concat(_toConsumableArray(e.currentTarget.elements));
+var handleChange = function handleChange() {
+  var descriptions = {
+    comments: 'The age of the most recent comments (limit 100) in days',
+    participation: 'Total commits per week by all users for the last year',
+    pulls: 'The age of the most recent pull requests (limit 100) in days'
+  };
+
+  var fields = [].concat(_toConsumableArray(document.getElementById('graph-selection-form').elements));
+  document.getElementById('description').innerHTML = descriptions[fields[0].value];
   show({ measurement: fields[0].value, stat: fields[1].value, order: fields[2].value });
 };
 
 window.onload = function () {
-  show({ measurement: 'comments', stat: 'max', order: 'desc' });
+  handleChange();
   document.getElementById('graph-selection-form').addEventListener('change', handleChange);
 };

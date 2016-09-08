@@ -3,23 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <title>JS Frameworks Dashboard</title>
+  <link rel="stylesheet" type="text/css" href="./style.css">
 </head>
 <body>
   <div id="app">
     <form id="graph-selection-form">
+      <label>Show: </label>
       <select id="stat-selector">
-        <option value="comments">Comments</option>
-        <option value="participation">Participation</option>
+        <option value="comments">Comment age</option>
+        <option value="participation">Weekly commits</option>
+        <option value="pulls">Pull request age</option>
       </select>
+      <label>Sort by: </label>
       <select id="sort-selector">
-        <option value="avg">avg</option>
-        <option value="max">max</option>
+        <option value="avg">average value</option>
+        <option value="max">max value</option>
       </select>
+      <label>in order of: </label>
       <select id="order-selector">
-        <option value="desc">desc</option>
-        <option value="asc">asc</option>
+        <option value="desc">descending</option>
+        <option value="asc">ascending</option>
       </select>
     </form>
+    <h4 id="description"></h4>
     <div id="graph-list"></div>
   </div>
   <script type="text/javascript" src="./dist/index.js"></script>
