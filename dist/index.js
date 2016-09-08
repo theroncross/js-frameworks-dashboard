@@ -89,11 +89,9 @@ var graph = function graph(attrs) {
   var data = attrs.data;
   var id = attrs.id;
   var color = attrs.color;
+  var max = attrs.max;
+  var avg = attrs.avg;
 
-  var avg = data.reduce(function (sum, d) {
-    return sum + d;
-  }) / data.length;
-  var max = Math.max.apply(Math, _toConsumableArray(data));
   var height = max > 100 ? max : 100;
   var width = 0.6 * window.innerWidth;
   var barWidth = width / data.length;
@@ -107,20 +105,18 @@ var graph = function graph(attrs) {
     transform: 'translate(20, 20)'
   });
 
-  data.forEach(function (d, i) {
-    newGraph.appendChild(bar({
-      value: d,
-      fill: color,
-      width: barWidth,
-      height: height,
-      i: i
-    }));
+  var axes = [{ value: 0, width: width, height: height }, { value: height / 2, width: width, height: height }, { value: height, width: width, height: height }];
+  axes.forEach(function (newAxis) {
+    return newGraph.appendChild(axis(newAxis));
   });
 
-  newGraph.appendChild(axis({ value: 0, width: width, height: height }));
-  newGraph.appendChild(axis({ value: height / 2, width: width, height: height }));
-  newGraph.appendChild(axis({ value: height, width: width, height: height }));
-  newGraph.appendChild(axis({ value: avg, width: width, height: height, stroke: 'orange', labels: ['', Math.round(avg), 'average'] }));
+  data.forEach(function (datum, i) {
+    var barAttrs = { value: datum, fill: color, width: barWidth, height: height, i: i };
+    newGraph.appendChild(bar(barAttrs));
+  });
+
+  newGraph.appendChild(axis({ value: avg, width: width, height: height, stroke: 'grey', labels: ['', Math.round(avg)] }));
+
   return newGraph;
 };
 
@@ -165,17 +161,32 @@ var routes = function routes(measurement) {
   });
 };
 
-// dom interaction
-var renderGraphs = function renderGraphs(data) {
-  graphs.innerHTML = '';
-  var graphData = void 0;
-  frameworks.forEach(function (fw, i) {
-    graphData = data[i].all ? data[i].all : parseComments(data[i]);
-    graphs.appendChild(graph({
-      data: graphData,
+var frameworkObjs = function frameworkObjs(response) {
+  var fw = void 0;
+  return frameworks.map(function (framework, i) {
+    fw = Object.assign({}, framework);
+    fw.data = response[i].all ? response[i].all : parseComments(response[i]);
+    fw.max = Math.max.apply(Math, _toConsumableArray(fw.data));
+    fw.avg = fw.data.reduce(function (sum, d) {
+      return sum + d;
+    }) / fw.data.length;
+    fw.graph = graph({
+      data: fw.data,
       id: fw.repo,
-      color: fw.color
-    }));
+      color: fw.color,
+      max: fw.max,
+      avg: fw.avg
+    });
+    return fw;
+  });
+};
+
+// dom interaction
+
+var renderGraphs = function renderGraphs(fws) {
+  graphs.innerHTML = '';
+  fws.forEach(function (fw) {
+    graphs.appendChild(fw.graph);
   });
 };
 
@@ -186,21 +197,29 @@ var displayError = function displayError(error) {
   console.error('Error loading data: ' + error);
 };
 
-var show = function show(measurement) {
+var show = function show(attrs) {
+  var measurement = attrs.measurement;
+  var stat = attrs.stat;
+  var order = attrs.order;
+
   fetchData(routes(measurement)).then(function (response) {
     return response;
   }).then(function (arrs) {
-    return renderGraphs(arrs);
+    var selectedFws = frameworkObjs(arrs).sort(function (a, b) {
+      return order === 'asc' ? a[stat] - b[stat] : b[stat] - a[stat];
+    });
+    renderGraphs(selectedFws);
   }).catch(function (error) {
     displayError(error);
   });
 };
 
 var handleChange = function handleChange(e) {
-  show(e.target.value);
+  var fields = [].concat(_toConsumableArray(e.currentTarget.elements));
+  show({ measurement: fields[0].value, stat: fields[1].value, order: fields[2].value });
 };
 
 window.onload = function () {
-  show('comments');
-  document.getElementById('stat-selector').addEventListener('change', handleChange);
+  show({ measurement: 'comments', stat: 'max', order: 'desc' });
+  document.getElementById('graph-selection-form').addEventListener('change', handleChange);
 };

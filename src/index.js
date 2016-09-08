@@ -75,9 +75,7 @@ const axis = (attrs) => {
 };
 
 const graph = (attrs) => {
-  const { data, id, color } = attrs;
-  const avg = data.reduce((sum, d) => sum + d) / data.length;
-  const max = Math.max(...data);
+  const { data, id, color, max, avg } = attrs;
   const height = max > 100 ? max : 100;
   const width = 0.6 * window.innerWidth;
   const barWidth = width / data.length;
@@ -91,20 +89,20 @@ const graph = (attrs) => {
     transform: 'translate(20, 20)',
   });
 
-  data.forEach((d, i) => {
-    newGraph.appendChild(bar({
-      value: d,
-      fill: color,
-      width: barWidth,
-      height,
-      i,
-    }));
+  const axes = [
+    { value: 0, width, height },
+    { value: height / 2, width, height },
+    { value: height, width, height },
+  ];
+  axes.forEach((newAxis) => newGraph.appendChild(axis(newAxis)));
+
+  data.forEach((datum, i) => {
+    const barAttrs = { value: datum, fill: color, width: barWidth, height, i };
+    newGraph.appendChild(bar(barAttrs));
   });
 
-  newGraph.appendChild(axis({ value: 0, width, height }));
-  newGraph.appendChild(axis({ value: height / 2, width, height }));
-  newGraph.appendChild(axis({ value: height, width, height }));
-  newGraph.appendChild(axis({ value: avg, width, height, stroke: 'orange', labels: ['', Math.round(avg), 'average'] }));
+  newGraph.appendChild(axis({ value: avg, width, height, stroke: 'grey', labels: ['', Math.round(avg)] }));
+
   return newGraph;
 };
 
@@ -144,17 +142,30 @@ const routes = (measurement) => {
   });
 };
 
-// dom interaction
-const renderGraphs = (data) => {
-  graphs.innerHTML = '';
-  let graphData;
-  frameworks.forEach((fw, i) => {
-    graphData = data[i].all ? data[i].all : parseComments(data[i])
-    graphs.appendChild(graph({
-      data: graphData,
+const frameworkObjs = (response) => {
+  let fw;
+  return frameworks.map((framework, i) => {
+    fw = Object.assign({}, framework);
+    fw.data = response[i].all ? response[i].all : parseComments(response[i]);
+    fw.max = Math.max(...fw.data);
+    fw.avg = fw.data.reduce((sum, d) => sum + d) / fw.data.length;
+    fw.graph = graph({
+      data: fw.data,
       id: fw.repo,
       color: fw.color,
-    }));
+      max: fw.max,
+      avg: fw.avg,
+    });
+    return fw;
+  });
+};
+
+// dom interaction
+
+const renderGraphs = (fws) => {
+  graphs.innerHTML = '';
+  fws.forEach((fw) => {
+    graphs.appendChild(fw.graph);
   });
 };
 
@@ -165,21 +176,28 @@ const displayError = (error) => {
   console.error(`Error loading data: ${error}`);
 };
 
-const show = (measurement) => {
+const show = (attrs) => {
+  const { measurement, stat, order } = attrs;
   fetchData(routes(measurement))
   .then((response) => response)
-  .then((arrs) => renderGraphs(arrs))
+  .then((arrs) => {
+    const selectedFws = frameworkObjs(arrs).sort((a, b) => {
+      return order === 'asc' ? a[stat] - b[stat] : b[stat] - a[stat];
+    });
+    renderGraphs(selectedFws);
+  })
   .catch((error) => {
     displayError(error);
   });
 };
 
 const handleChange = (e) => {
-  show(e.target.value);
+  const fields = [...e.currentTarget.elements];
+  show({ measurement: fields[0].value, stat: fields[1].value, order: fields[2].value });
 };
 
 window.onload = () => {
-  show('comments');
-  document.getElementById('stat-selector')
+  show({ measurement: 'comments', stat: 'max', order: 'desc' });
+  document.getElementById('graph-selection-form')
   .addEventListener('change', handleChange);
 };
