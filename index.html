@@ -5,7 +5,23 @@
   <title>JS Frameworks Dashboard</title>
 </head>
 <body>
-  <div id="app"></div>
+  <div id="app">
+    <form id="graph-selection-form">
+      <select id="stat-selector">
+        <option value="comments">Comments</option>
+        <option value="participation">Participation</option>
+      </select>
+      <select id="sort-selector">
+        <option value="avg">avg</option>
+        <option value="max">max</option>
+      </select>
+      <select id="order-selector">
+        <option value="desc">desc</option>
+        <option value="asc">asc</option>
+      </select>
+    </form>
+    <div id="graph-list"></div>
+  </div>
   <script type="text/javascript" src="./dist/index.js"></script>
 </body>
 </html>
