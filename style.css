@@ -1,8 +1,9 @@
 * {
   font-family: sans-serif;
   text-align: center;
+  margin: 5px auto;
 }
 
 #graph-container {
-  margin: 10px;
+  margin-bottom: 10px;
 }
