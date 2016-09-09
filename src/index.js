@@ -2,10 +2,10 @@ const graphs = document.getElementById('graph-list');
 const rootUrl = 'https://api.github.com';
 const NS = 'http://www.w3.org/2000/svg';
 const frameworks = [
-  { org: 'facebook', repo: 'react', color: 'blue' },
-  { org: 'angular', repo: 'angular', color: 'red' },
-  { org: 'emberjs', repo: 'ember.js', color: 'green' },
-  { org: 'vuejs', repo: 'vue', color: 'purple' },
+  { org: 'facebook', repo: 'react', color: '#61DAFB' },
+  { org: 'angular', repo: 'angular', color: '#DD1B16' },
+  { org: 'emberjs', repo: 'ember.js', color: '#E46651' },
+  { org: 'vuejs', repo: 'vue', color: '#41B883' },
 ];
 
 // Utility Functions
@@ -165,7 +165,8 @@ const renderGraphs = (fws) => {
   graphs.innerHTML = '';
   fws.forEach((fw) => {
     const graphContainer = document.createElement('div');
-    const title = document.createElement('h3');
+    graphContainer.setAttribute('id', 'graph-container');
+    const title = document.createElement('h2');
     title.innerHTML = `${fw.repo.toUpperCase()}`;
     graphContainer.appendChild(title);
     graphContainer.appendChild(fw.graph);
@@ -209,6 +210,7 @@ const handleChange = () => {
 
 window.onload = () => {
   handleChange();
+  window.setInterval(handleChange, 2 * 60 * 1000);
   document.getElementById('graph-selection-form')
   .addEventListener('change', handleChange);
 };

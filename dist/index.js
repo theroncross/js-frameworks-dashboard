@@ -5,7 +5,7 @@ function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr
 var graphs = document.getElementById('graph-list');
 var rootUrl = 'https://api.github.com';
 var NS = 'http://www.w3.org/2000/svg';
-var frameworks = [{ org: 'facebook', repo: 'react', color: 'blue' }, { org: 'angular', repo: 'angular', color: 'red' }, { org: 'emberjs', repo: 'ember.js', color: 'green' }, { org: 'vuejs', repo: 'vue', color: 'purple' }];
+var frameworks = [{ org: 'facebook', repo: 'react', color: '#61DAFB' }, { org: 'angular', repo: 'angular', color: '#DD1B16' }, { org: 'emberjs', repo: 'ember.js', color: '#E46651' }, { org: 'vuejs', repo: 'vue', color: '#41B883' }];
 
 // Utility Functions
 
@@ -197,7 +197,8 @@ var renderGraphs = function renderGraphs(fws) {
   graphs.innerHTML = '';
   fws.forEach(function (fw) {
     var graphContainer = document.createElement('div');
-    var title = document.createElement('h3');
+    graphContainer.setAttribute('id', 'graph-container');
+    var title = document.createElement('h2');
     title.innerHTML = '' + fw.repo.toUpperCase();
     graphContainer.appendChild(title);
     graphContainer.appendChild(fw.graph);
@@ -243,5 +244,6 @@ var handleChange = function handleChange() {
 
 window.onload = function () {
   handleChange();
+  window.setInterval(handleChange, 2 * 60 * 1000);
   document.getElementById('graph-selection-form').addEventListener('change', handleChange);
 };
