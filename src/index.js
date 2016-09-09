@@ -6,7 +6,7 @@ const elWithAttrs = (attrs) => {
   const NS = 'http://www.w3.org/2000/svg';
   const newEl = document.createElementNS(NS, tag);
 
-  Object.keys(attrs).forEach((attr) => {
+  Object.keys(rest).forEach((attr) => {
     newEl.setAttributeNS(null, attr, attrs[attr]);
   });
 
@@ -122,8 +122,7 @@ const fetchData = (routes) => {
   return Promise.all(fetches);
 };
 
-const routes = (attrs) => {
-  const { measurement, frameworks } = attrs;
+const routes = (dataType, frameworks) => {
   const rootUrl = 'https://api.github.com';
   const routeSuffixes = {
     participation: 'stats/participation',
@@ -133,12 +132,11 @@ const routes = (attrs) => {
 
   return frameworks.map((fw) => {
     const { org, repo } = fw;
-    return `${rootUrl}/repos/${org}/${repo}/${routeSuffixes[measurement]}`;
+    return `${rootUrl}/repos/${org}/${repo}/${routeSuffixes[dataType]}`;
   });
 };
 
-const frameworkObjs = (attrs) => {
-  const { response, frameworks } = attrs;
+const frameworkObjs = (response, frameworks) => {
   const isAge = !response[0].hasOwnProperty('all');
   const ageWeighted = (data) =>
     data.reduce((sum, d, i) => (sum + (d * i)) / data.length);
@@ -185,7 +183,7 @@ const displayError = (error) => {
 };
 
 const show = (attrs) => {
-  const { measurement, stat, order } = attrs;
+  const { dataType, stat, order } = attrs;
   const frameworks = [
     { org: 'facebook', repo: 'react', color: '#61DAFB' },
     { org: 'angular', repo: 'angular', color: '#DD1B16' },
@@ -193,9 +191,9 @@ const show = (attrs) => {
     { org: 'vuejs', repo: 'vue', color: '#41B883' },
   ];
 
-  fetchData(routes({ measurement, frameworks }))
+  fetchData(routes(dataType, frameworks))
   .then((response) => {
-    const selectedFws = frameworkObjs({ response, frameworks })
+    const selectedFws = frameworkObjs(response, frameworks)
     .sort((a, b) => order === 'asc' ? a[stat] - b[stat] : b[stat] - a[stat]);
     renderGraphs(selectedFws);
   })
@@ -213,7 +211,7 @@ const handleChange = () => {
 
   const fields = [...document.getElementById('graph-selection-form').elements];
   document.getElementById('description').innerHTML = descriptions[fields[0].value];
-  show({ measurement: fields[0].value, stat: fields[1].value, order: fields[2].value });
+  show({ dataType: fields[0].value, stat: fields[1].value, order: fields[2].value });
 };
 
 window.onload = () => {

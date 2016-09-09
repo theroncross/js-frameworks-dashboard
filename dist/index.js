@@ -16,7 +16,7 @@ var elWithAttrs = function elWithAttrs(attrs) {
   var NS = 'http://www.w3.org/2000/svg';
   var newEl = document.createElementNS(NS, tag);
 
-  Object.keys(attrs).forEach(function (attr) {
+  Object.keys(rest).forEach(function (attr) {
     newEl.setAttributeNS(null, attr, attrs[attr]);
   });
 
@@ -157,10 +157,7 @@ var fetchData = function fetchData(routes) {
   return Promise.all(fetches);
 };
 
-var routes = function routes(attrs) {
-  var measurement = attrs.measurement;
-  var frameworks = attrs.frameworks;
-
+var routes = function routes(dataType, frameworks) {
   var rootUrl = 'https://api.github.com';
   var routeSuffixes = {
     participation: 'stats/participation',
@@ -172,14 +169,11 @@ var routes = function routes(attrs) {
     var org = fw.org;
     var repo = fw.repo;
 
-    return rootUrl + '/repos/' + org + '/' + repo + '/' + routeSuffixes[measurement];
+    return rootUrl + '/repos/' + org + '/' + repo + '/' + routeSuffixes[dataType];
   });
 };
 
-var frameworkObjs = function frameworkObjs(attrs) {
-  var response = attrs.response;
-  var frameworks = attrs.frameworks;
-
+var frameworkObjs = function frameworkObjs(response, frameworks) {
   var isAge = !response[0].hasOwnProperty('all');
   var ageWeighted = function ageWeighted(data) {
     return data.reduce(function (sum, d, i) {
@@ -232,14 +226,14 @@ var displayError = function displayError(error) {
 };
 
 var show = function show(attrs) {
-  var measurement = attrs.measurement;
+  var dataType = attrs.dataType;
   var stat = attrs.stat;
   var order = attrs.order;
 
   var frameworks = [{ org: 'facebook', repo: 'react', color: '#61DAFB' }, { org: 'angular', repo: 'angular', color: '#DD1B16' }, { org: 'emberjs', repo: 'ember.js', color: '#E46651' }, { org: 'vuejs', repo: 'vue', color: '#41B883' }];
 
-  fetchData(routes({ measurement: measurement, frameworks: frameworks })).then(function (response) {
-    var selectedFws = frameworkObjs({ response: response, frameworks: frameworks }).sort(function (a, b) {
+  fetchData(routes(dataType, frameworks)).then(function (response) {
+    var selectedFws = frameworkObjs(response, frameworks).sort(function (a, b) {
       return order === 'asc' ? a[stat] - b[stat] : b[stat] - a[stat];
     });
     renderGraphs(selectedFws);
@@ -257,7 +251,7 @@ var handleChange = function handleChange() {
 
   var fields = [].concat(_toConsumableArray(document.getElementById('graph-selection-form').elements));
   document.getElementById('description').innerHTML = descriptions[fields[0].value];
-  show({ measurement: fields[0].value, stat: fields[1].value, order: fields[2].value });
+  show({ dataType: fields[0].value, stat: fields[1].value, order: fields[2].value });
 };
 
 window.onload = function () {
